@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
 from contextlib import asynccontextmanager
 import uvicorn
+import os
 from datetime import timedelta, datetime
 
 from schemas import (
@@ -20,10 +21,17 @@ from config import settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await connect_to_mongo()
+    try:
+        await connect_to_mongo()
+    except Exception as e:
+        print(f"Warning: MongoDB connection failed in lifespan: {e}")
+        # In serverless, connection will be established on first request
     yield
-    # Shutdown
-    await close_mongo_connection()
+    # Shutdown - Note: In serverless, this may not always run
+    try:
+        await close_mongo_connection()
+    except Exception:
+        pass
 
 app = FastAPI(
     title="Amplifi Connector",
@@ -33,11 +41,19 @@ app = FastAPI(
 )
 
 # Add CORS middleware to allow frontend requests
-# Using ["*"] to allow all origins for ngrok compatibility
+# Get frontend URL from environment or use default
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+ALLOWED_ORIGINS = [
+    FRONTEND_URL,
+    "http://localhost:3000",  # Local development
+    # Add your Vercel frontend URL here after deployment
+    # "https://your-app.vercel.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for ngrok compatibility
-    allow_credentials=False,  # Must be False when allow_origins is ["*"]
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
     expose_headers=["*"],
@@ -184,5 +200,7 @@ async def handle_query(
 
 # --- Main Entrypoint to Run the Server ---
 if __name__ == "__main__":
-    print("Starting Amplifi Connector Server on http://localhost:8001")
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    import os
+    port = int(os.getenv("PORT", 8001))
+    print(f"Starting Amplifi Connector Server on port {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)

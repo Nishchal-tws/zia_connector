@@ -11,6 +11,15 @@ db = Database()
 
 async def connect_to_mongo():
     """Create database connection"""
+    # If already connected, reuse connection
+    if db.client is not None:
+        try:
+            await db.client.admin.command('ping')
+            return db.client
+        except Exception:
+            # Connection lost, reconnect
+            db.client = None
+    
     try:
         db.client = AsyncIOMotorClient(settings.MONGODB_URL)
         # Test the connection
