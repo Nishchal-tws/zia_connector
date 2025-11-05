@@ -1,0 +1,188 @@
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from typing import Dict, Any
+from contextlib import asynccontextmanager
+import uvicorn
+from datetime import timedelta, datetime
+
+from schemas import (
+    QueryRequest, QueryResponse, 
+    UserSignup, UserLogin, Token, UserResponse
+)
+from services import AmplifiService
+from database import connect_to_mongo, close_mongo_connection, get_users_collection
+from auth import (
+    verify_password, get_password_hash, create_access_token,
+    get_current_user, get_current_user_email
+)
+from config import settings
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await connect_to_mongo()
+    yield
+    # Shutdown
+    await close_mongo_connection()
+
+app = FastAPI(
+    title="Amplifi Connector",
+    description="Authenticated proxy to Amplifi.",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Add CORS middleware to allow frontend requests
+# Using ["*"] to allow all origins for ngrok compatibility
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for ngrok compatibility
+    allow_credentials=False,  # Must be False when allow_origins is ["*"]
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
+amplifi_service = AmplifiService()
+
+def get_amplifi_service():
+    return amplifi_service
+
+@app.get("/api/v1/test/connection", tags=["Test"])
+async def test_connection(
+    amplifi: AmplifiService = Depends(get_amplifi_service)
+):
+    """
+    Test the connection to Amplifi by getting an access token.
+    """
+    try:
+        result = amplifi.test_connection()
+        if result["status"] == "success":
+            return result
+        else:
+            raise HTTPException(status_code=500, detail=result["message"])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Connection test failed: {e}")
+
+# --- Authentication Endpoints ---
+@app.post("/api/v1/auth/signup", response_model=UserResponse, tags=["Authentication"])
+async def signup(user_data: UserSignup):
+    """
+    Create a new user account.
+    """
+    users_collection = get_users_collection()
+    
+    # Check if user already exists
+    existing_user = await users_collection.find_one({"email": user_data.email})
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    existing_username = await users_collection.find_one({"username": user_data.username})
+    if existing_username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already taken"
+        )
+    
+    # Create new user
+    hashed_password = get_password_hash(user_data.password)
+    user_dict = {
+        "email": user_data.email,
+        "username": user_data.username,
+        "hashed_password": hashed_password,
+        "created_at": str(datetime.utcnow())
+    }
+    
+    result = await users_collection.insert_one(user_dict)
+    user_dict["id"] = str(result.inserted_id)
+    
+    return UserResponse(
+        id=user_dict["id"],
+        email=user_dict["email"],
+        username=user_dict["username"]
+    )
+
+@app.post("/api/v1/auth/login", response_model=Token, tags=["Authentication"])
+async def login(user_data: UserLogin):
+    """
+    Login and get JWT token.
+    """
+    users_collection = get_users_collection()
+    
+    # Find user by email
+    user = await users_collection.find_one({"email": user_data.email})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password"
+        )
+    
+    # Verify password
+    if not verify_password(user_data.password, user["hashed_password"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password"
+        )
+    
+    # Create access token
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user["email"]}, expires_delta=access_token_expires
+    )
+    
+    return Token(access_token=access_token, token_type="bearer")
+
+@app.get("/api/v1/auth/me", response_model=UserResponse, tags=["Authentication"])
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """
+    Get current authenticated user information.
+    """
+    return UserResponse(
+        id=str(current_user["_id"]),
+        email=current_user["email"],
+        username=current_user["username"]
+    )
+
+@app.post("/api/v1/query", response_model=QueryResponse, tags=["Chat"])
+async def handle_query(
+    request: QueryRequest,
+    amplifi: AmplifiService = Depends(get_amplifi_service),
+    current_user_email: str = Depends(get_current_user_email)
+):
+    """
+    Send user's query to Amplifi for an existing chat session.
+    Requires authentication.
+    """
+    try:
+        amplifi_response = amplifi.get_amplifi_response(request.query)
+        
+        # Extract the answer from the response
+        # Response structure: {"responses": [{"response": "..."}], "contexts": [...]}
+        answer = "No answer found."
+        if "responses" in amplifi_response and isinstance(amplifi_response["responses"], list) and len(amplifi_response["responses"]) > 0:
+            answer = amplifi_response["responses"][0].get("response", "No answer found.")
+        elif "pydantic_message" in amplifi_response and isinstance(amplifi_response["pydantic_message"], list) and len(amplifi_response["pydantic_message"]) > 0:
+            model_response = amplifi_response["pydantic_message"][0].get("model_response", {})
+            answer = model_response.get("content", "No answer found.")
+        elif "answer" in amplifi_response:
+            answer = amplifi_response["answer"]
+        elif "response" in amplifi_response:
+            answer = amplifi_response["response"]
+        
+        # Extract contexts if available
+        contexts = amplifi_response.get("contexts")
+
+        return QueryResponse(
+            answer=answer,
+            contexts=contexts
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process query: {e}")
+
+# --- Main Entrypoint to Run the Server ---
+if __name__ == "__main__":
+    print("Starting Amplifi Connector Server on http://localhost:8001")
+    uvicorn.run(app, host="0.0.0.0", port=8001)

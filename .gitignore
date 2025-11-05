@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+debug.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+node_modules/
+frontend/zia/node_modules/
+frontend/zia/build/
+frontend/zia/.env.local
+frontend/zia/.env.development.local
+frontend/zia/.env.test.local
+frontend/zia/.env.production.local
+frontend/zia/npm-debug.log*
+frontend/zia/yarn-debug.log*
+frontend/zia/yarn-error.log*
+
+# Amplifi token cache
+amplifi_token.json
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Temporary files
+*.tmp
+*.temp
+
