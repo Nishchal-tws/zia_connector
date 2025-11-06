@@ -33,7 +33,7 @@ function Login({ onLogin }) {
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
           const text = await response.text();
-          throw new Error(`Server returned non-JSON response. Status: ${response.status}`);
+          throw new Error(`Server returned non-JSON response. Status: ${response.status}. Response: ${text.substring(0, 100)}`);
         }
 
         if (!response.ok) {
@@ -77,7 +77,7 @@ function Login({ onLogin }) {
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
           const text = await response.text();
-          throw new Error(`Server returned non-JSON response. Status: ${response.status}`);
+          throw new Error(`Server returned non-JSON response. Status: ${response.status}. Response: ${text.substring(0, 100)}`);
         }
 
         if (!response.ok) {
@@ -98,7 +98,7 @@ function Login({ onLogin }) {
         const loginContentType = loginResponse.headers.get('content-type');
         if (!loginContentType || !loginContentType.includes('application/json')) {
           const text = await loginResponse.text();
-          throw new Error(`Server returned non-JSON response. Status: ${loginResponse.status}`);
+          throw new Error(`Server returned non-JSON response. Status: ${loginResponse.status}. Response: ${text.substring(0, 100)}`);
         }
 
         if (!loginResponse.ok) {
