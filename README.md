@@ -17,7 +17,6 @@ A modern, full-stack chat application that connects to Amplifi's AI-powered chat
 - Node.js 14+ and npm
 - MongoDB Atlas account (or local MongoDB instance)
 - Amplifi API credentials
-- ngrok (for exposing local backend)
 
 ## 🛠️ Installation
 
@@ -59,7 +58,9 @@ A modern, full-stack chat application that connects to Amplifi's AI-powered chat
    AMPLIFI_CHAT_SESSION_ID=your_chat_session_id
 
    # MongoDB Atlas Configuration
-   MONGODB_URL=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority
+   # Replace with your actual MongoDB Atlas connection string
+   # Format: mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@YOUR_CLUSTER.mongodb.net/YOUR_DATABASE?retryWrites=true&w=majority
+   MONGODB_URL=mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@YOUR_CLUSTER.mongodb.net/YOUR_DATABASE?retryWrites=true&w=majority
    DATABASE_NAME=zia_amplifi_db
 
    # JWT Secret Key (generate a random secret key)
@@ -87,24 +88,18 @@ A modern, full-stack chat application that connects to Amplifi's AI-powered chat
    npm install
    ```
 
-3. **Create a `.env` file** in `frontend/zia/`:
+3. **Create a `.env` file** in `frontend/zia/` (optional for local development):
    ```env
-   REACT_APP_API_URL=https://your-ngrok-url.ngrok-free.dev
+   # Only needed if running frontend separately from backend
+   # For Vercel deployment, this is not needed as API uses relative paths
+   REACT_APP_API_URL=http://localhost:8000
    ```
 
 ## 🚀 Running the Application
 
 ### Backend
 
-1. **Start ngrok** (in a separate terminal):
-   ```bash
-   ngrok http 8000
-   ```
-   Copy the HTTPS URL (e.g., `https://xxxxx.ngrok-free.dev`)
-
-2. **Update frontend `.env`** with the ngrok URL
-
-3. **Start the FastAPI server**:
+1. **Start the FastAPI server**:
    ```bash
    python main.py
    ```
@@ -219,13 +214,13 @@ pip install email-validator
 ### Frontend Issues
 
 **"Unexpected token '<'"**
-- This usually means ngrok is returning HTML instead of JSON
-- Ensure `ngrok-skip-browser-warning: 'true'` header is included in requests
-- Check that your ngrok URL is correct
+- This usually means the API is returning HTML instead of JSON
+- Check that your API URL is correct
+- Verify the backend server is running
 
 **"CORS errors"**
 - Verify backend CORS settings allow your frontend origin
-- Check that ngrok URL matches the one in frontend `.env`
+- For local development, ensure both frontend and backend are running
 
 **"401 Unauthorized"**
 - Token may have expired, try logging in again
@@ -249,7 +244,7 @@ All configuration is loaded from environment variables:
 
 ### Frontend Configuration
 
-- `REACT_APP_API_URL`: Backend API URL (ngrok URL)
+- `REACT_APP_API_URL`: Backend API URL (only needed for local development, not needed for Vercel deployment)
 
 ## 🔄 Development
 
