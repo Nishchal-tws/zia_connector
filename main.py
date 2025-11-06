@@ -98,47 +98,62 @@ async def signup(user_data: UserSignup):
     """
     Create a new user account.
     """
-    users_collection = get_users_collection()
-    
-    # Check if user already exists
-    existing_user = await users_collection.find_one({"email": user_data.email})
-    if existing_user:
+    try:
+        users_collection = await get_users_collection()
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database connection failed: {str(e)}"
         )
     
-    existing_username = await users_collection.find_one({"username": user_data.username})
-    if existing_username:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already taken"
+    try:
+        # Check if user already exists
+        existing_user = await users_collection.find_one({"email": user_data.email})
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        
+        existing_username = await users_collection.find_one({"username": user_data.username})
+        if existing_username:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken"
+            )
+        
+        # Create new user
+        hashed_password = get_password_hash(user_data.password)
+        user_dict = {
+            "email": user_data.email,
+            "username": user_data.username,
+            "hashed_password": hashed_password,
+            "created_at": str(datetime.utcnow())
+        }
+        
+        result = await users_collection.insert_one(user_dict)
+        user_dict["id"] = str(result.inserted_id)
+        
+        return UserResponse(
+            id=user_dict["id"],
+            email=user_dict["email"],
+            username=user_dict["username"]
         )
-    
-    # Create new user
-    hashed_password = get_password_hash(user_data.password)
-    user_dict = {
-        "email": user_data.email,
-        "username": user_data.username,
-        "hashed_password": hashed_password,
-        "created_at": str(datetime.utcnow())
-    }
-    
-    result = await users_collection.insert_one(user_dict)
-    user_dict["id"] = str(result.inserted_id)
-    
-    return UserResponse(
-        id=user_dict["id"],
-        email=user_dict["email"],
-        username=user_dict["username"]
-    )
+    except HTTPException:
+        # Re-raise HTTP exceptions (like validation errors)
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create user: {str(e)}"
+        )
 
 @app.post("/api/v1/auth/login", response_model=Token, tags=["Authentication"])
 async def login(user_data: UserLogin):
     """
     Login and get JWT token.
     """
-    users_collection = get_users_collection()
+    users_collection = await get_users_collection()
     
     # Find user by email
     user = await users_collection.find_one({"email": user_data.email})

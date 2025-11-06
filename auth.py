@@ -65,7 +65,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     
     # Get user from database
-    users_collection = get_users_collection()
+    users_collection = await get_users_collection()
     user = await users_collection.find_one({"email": token_data.email})
     if user is None:
         raise credentials_exception

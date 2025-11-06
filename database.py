@@ -36,12 +36,19 @@ async def close_mongo_connection():
         db.client.close()
         logger.info("✅ Disconnected from MongoDB")
 
-def get_database():
-    """Get database instance"""
+async def get_database():
+    """Get database instance, ensuring connection is established"""
+    # Ensure connection is established (important for serverless)
+    if db.client is None:
+        try:
+            await connect_to_mongo()
+        except Exception as e:
+            logger.error(f"Failed to establish MongoDB connection: {e}")
+            raise
     return db.client[settings.DATABASE_NAME]
 
-def get_users_collection():
-    """Get users collection"""
-    database = get_database()
+async def get_users_collection():
+    """Get users collection, ensuring connection is established"""
+    database = await get_database()
     return database.users
 
