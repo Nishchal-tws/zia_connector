@@ -1,11 +1,21 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
 
+# Build config dict conditionally
+_config_dict = {"extra": "ignore"}
+if os.path.exists(".env"):
+    # Only load .env file if it exists (for local development)
+    # In Vercel, environment variables are set directly
+    _config_dict["env_file"] = ".env"
+    _config_dict["env_file_encoding"] = "utf-8"
 
 class Settings(BaseSettings):
     """
-    Loads all settings from the .env file.
+    Loads all settings from environment variables.
+    In Vercel, these come from the environment variables set in the dashboard.
+    For local development, they can come from a .env file.
     """
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(**_config_dict)
 
     # --- AMPLIFI SETTINGS ---
     AMPLIFI_API_URL: str
