@@ -35,10 +35,14 @@ class Settings(BaseSettings):
 
 # Create a single, importable instance of the settings
 # Wrap in try-except to provide helpful error messages if env vars are missing
+_settings_instance = None
+_settings_error = None
+
 try:
-    settings = Settings()
+    _settings_instance = Settings()
 except Exception as e:
     import sys
+    _settings_error = e
     error_msg = f"""
     ⚠️  Configuration Error: Failed to load settings.
     
@@ -58,4 +62,17 @@ except Exception as e:
     Please ensure all environment variables are set in your Vercel project settings.
     """
     print(error_msg, file=sys.stderr)
-    raise
+    # Don't raise here - instead create a proxy that will raise when accessed
+    # This allows the module to be imported, but will fail when settings are actually used
+
+# Create a proxy object that will raise a helpful error when accessed
+class SettingsProxy:
+    def __getattr__(self, name):
+        if _settings_error:
+            raise RuntimeError(
+                f"Settings not initialized. Configuration error: {str(_settings_error)}\n"
+                "Please check that all required environment variables are set in Vercel."
+            ) from _settings_error
+        return getattr(_settings_instance, name)
+
+settings = _settings_instance if _settings_instance else SettingsProxy()

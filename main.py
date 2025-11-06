@@ -71,21 +71,45 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-amplifi_service = AmplifiService()
+# Defer AmplifiService instantiation to avoid errors if settings aren't loaded
+_amplifi_service = None
 
 def get_amplifi_service():
-    return amplifi_service
+    global _amplifi_service
+    if _amplifi_service is None:
+        try:
+            _amplifi_service = AmplifiService()
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to initialize AmplifiService: {str(e)}. Check environment variables."
+            )
+    return _amplifi_service
 
 @app.get("/api/v1/health", tags=["Health"])
 async def health_check():
     """
     Simple health check endpoint to verify the server is running.
+    This endpoint works even if settings aren't fully configured.
     """
-    return {
+    health_status = {
         "status": "ok",
         "message": "Server is running",
         "timestamp": datetime.utcnow().isoformat()
     }
+    
+    # Check if settings are loaded
+    try:
+        from config import _settings_instance
+        if _settings_instance is None:
+            health_status["settings"] = "not_configured"
+            health_status["warning"] = "Environment variables may be missing. Check Vercel settings."
+        else:
+            health_status["settings"] = "configured"
+    except Exception:
+        health_status["settings"] = "unknown"
+    
+    return health_status
 
 @app.get("/api/v1/test/connection", tags=["Test"])
 async def test_connection(
