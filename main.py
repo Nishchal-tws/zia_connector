@@ -41,14 +41,26 @@ app = FastAPI(
 )
 
 # Add CORS middleware to allow frontend requests
-# Get frontend URL from environment or use default
+# On Vercel, frontend and backend are on the same domain, so we allow all origins
+# For local development, allow localhost
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+VERCEL_URL = os.getenv("VERCEL_URL", "")  # Vercel automatically sets this
 ALLOWED_ORIGINS = [
     FRONTEND_URL,
     "http://localhost:3000",  # Local development
-    # Add your Vercel frontend URL here after deployment
-    # "https://your-app.vercel.app",
 ]
+
+# Add Vercel URL if it exists (format: your-app.vercel.app)
+if VERCEL_URL:
+    # Add both with and without https
+    ALLOWED_ORIGINS.extend([
+        f"https://{VERCEL_URL}",
+        f"http://{VERCEL_URL}",
+    ])
+
+# Allow all origins for Vercel deployment (same domain)
+# In production, both frontend and API are on the same domain, so CORS is less critical
+ALLOWED_ORIGINS = ["*"]  # Allow all origins for simplicity on Vercel
 
 app.add_middleware(
     CORSMiddleware,

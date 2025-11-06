@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import './Auth.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://supersulfureted-kesha-unvascularly.ngrok-free.dev';
+// Use relative path for API when deployed on Vercel (same domain)
+// Only use absolute URL if REACT_APP_API_URL is explicitly set (for local dev)
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 function Login({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true);

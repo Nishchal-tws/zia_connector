@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import './App.css';
 import Login from './Login';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'https://supersulfureted-kesha-unvascularly.ngrok-free.dev';
+// Use relative path for API when deployed on Vercel (same domain)
+// Only use absolute URL if REACT_APP_API_URL is explicitly set (for local dev)
+const API_BASE = process.env.REACT_APP_API_URL || '';
 const API_URL = `${API_BASE}/api/v1/query`;
 
 
