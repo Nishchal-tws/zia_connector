@@ -58,9 +58,14 @@ if VERCEL_URL:
         f"http://{VERCEL_URL}",
     ])
 
-# Allow all origins for Vercel deployment (same domain)
-# In production, both frontend and API are on the same domain, so CORS is less critical
-ALLOWED_ORIGINS = ["*"]  # Allow all origins for simplicity on Vercel
+# For separate deployment (Render + Vercel), add frontend URL explicitly
+# If FRONTEND_URL is set, use it; otherwise allow all for development
+if not FRONTEND_URL or FRONTEND_URL == "http://localhost:3000":
+    # Development or same-domain deployment: allow all
+    ALLOWED_ORIGINS = ["*"]
+else:
+    # Production with separate deployment: use specific origins
+    ALLOWED_ORIGINS.append(FRONTEND_URL)
 
 app.add_middleware(
     CORSMiddleware,
