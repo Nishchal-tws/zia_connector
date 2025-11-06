@@ -76,6 +76,17 @@ amplifi_service = AmplifiService()
 def get_amplifi_service():
     return amplifi_service
 
+@app.get("/api/v1/health", tags=["Health"])
+async def health_check():
+    """
+    Simple health check endpoint to verify the server is running.
+    """
+    return {
+        "status": "ok",
+        "message": "Server is running",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 @app.get("/api/v1/test/connection", tags=["Test"])
 async def test_connection(
     amplifi: AmplifiService = Depends(get_amplifi_service)
