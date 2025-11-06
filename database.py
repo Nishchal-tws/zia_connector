@@ -19,7 +19,7 @@ async def connect_to_mongo():
         except Exception:
             # Connection lost, reconnect
             db.client = None
-    
+
     try:
         # MongoDB Atlas connection with proper timeout settings
         # mongodb+srv:// automatically uses SSL/TLS, so we don't need to configure it explicitly

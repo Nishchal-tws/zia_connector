@@ -114,7 +114,7 @@ async def health_check():
         from config import _settings_instance
         if _settings_instance is None:
             health_status["settings"] = "not_configured"
-            health_status["warning"] = "Environment variables may be missing. Check Vercel settings."
+            health_status["warning"] = "Environment variables may be missing. Check Render settings."
         else:
             health_status["settings"] = "configured"
     except Exception:

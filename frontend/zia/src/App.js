@@ -12,23 +12,16 @@ const API_URL = `${API_BASE}/api/v1/query`;
 const parseMessage = (text) => {
   if (!text) return { text: '', html: null, hasVisualization: false };
   
-  console.log('Parsing message, length:', text.length);
-  
   // Check if the message contains HTML (visualization) - be more flexible with matching
   const htmlMatch = text.match(/<!DOCTYPE html>[\s\S]*?<\/html>/i) || 
                     text.match(/<html[\s\S]*?<\/html>/i) ||
                     text.match(/<div[^>]*id="[^"]*"[^>]*>[\s\S]*?<script[\s\S]*?Plotly[\s\S]*?<\/script>/i);
   
   if (htmlMatch) {
-    console.log('HTML visualization detected!');
     const htmlContent = htmlMatch[0];
     const textBefore = text.substring(0, text.indexOf(htmlMatch[0])).trim();
     const textAfter = text.substring(text.indexOf(htmlMatch[0]) + htmlMatch[0].length).trim();
     const combinedText = [textBefore, textAfter].filter(t => t).join('\n');
-    
-    console.log('HTML content length:', htmlContent.length);
-    console.log('Text before:', textBefore);
-    console.log('Text after:', textAfter);
     
     return {
       text: combinedText,
@@ -37,7 +30,6 @@ const parseMessage = (text) => {
     };
   }
   
-  console.log('No HTML visualization found');
   return {
     text: text,
     html: null,
@@ -126,10 +118,7 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
   const containerRef = useRef(null);
 
   useEffect(() => {
-    console.log('VisualizationRenderer useEffect triggered', { html: !!html, hasContainer: !!containerRef.current });
-    
     if (!html) {
-      console.log('VisualizationRenderer: No HTML provided');
       return;
     }
 
@@ -140,19 +129,14 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
         return;
       }
 
-      console.log('VisualizationRenderer: Starting render process, HTML length:', html.length);
-
       // Wait for Plotly to be available
       const waitForPlotly = () => {
         return new Promise((resolve) => {
           if (window.Plotly) {
-            console.log('Plotly already loaded');
             resolve();
           } else {
-            console.log('Waiting for Plotly to load...');
             const checkInterval = setInterval(() => {
               if (window.Plotly) {
-                console.log('Plotly loaded!');
                 clearInterval(checkInterval);
                 resolve();
               }
@@ -184,7 +168,6 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
           return;
         }
 
-        console.log('Parsing HTML...');
         // Use DOMParser to properly parse the full HTML document
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
@@ -193,15 +176,10 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
         let scripts = doc.querySelectorAll('script');
         let bodyContent = doc.querySelector('body');
         
-        console.log('Found scripts:', scripts.length);
-        console.log('Body content found:', !!bodyContent);
-        
         // If body not found, try extracting from HTML string directly
         if (!bodyContent) {
-          console.log('Body not found in parsed doc, trying to extract from HTML string...');
           const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
           if (bodyMatch) {
-            console.log('Found body in HTML string');
             // Create a temporary div to parse body content
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = bodyMatch[1];
@@ -211,17 +189,12 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
           }
         }
         
-        // Also try getting scripts from document head if needed
-        const headScripts = doc.querySelectorAll('head script');
-        console.log('Head scripts found:', headScripts.length);
-        
         if (bodyContent) {
           // Clear container
           containerRef.current.innerHTML = '';
           
           // Find the div that will contain the chart
           const chartDiv = bodyContent.querySelector('[id]');
-          console.log('Chart div found:', !!chartDiv, chartDiv?.id);
           
           if (!chartDiv) {
             console.error('No chart div found in HTML');
@@ -232,8 +205,6 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
           // Create unique ID for this message
           const originalId = chartDiv.id;
           const uniqueId = `${originalId}-${messageIndex}`;
-          
-          console.log('Original ID:', originalId, 'Unique ID:', uniqueId);
           
           // Create the chart container div
           const newChartDiv = document.createElement('div');
@@ -249,22 +220,15 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
           }
           
           containerRef.current.appendChild(newChartDiv);
-          console.log('Chart container div added to DOM');
 
           // Find and execute the Plotly script
-          // Combine body scripts and head scripts
           const allScripts = Array.from(scripts);
           let scriptFound = false;
           
-          allScripts.forEach((script, idx) => {
-            console.log(`Script ${idx}:`, { hasSrc: !!script.src, hasContent: !!script.textContent, textLength: script.textContent?.length });
-            
+          allScripts.forEach((script) => {
             if (!script.src && script.textContent) {
               scriptFound = true;
               let scriptContent = script.textContent;
-              
-              console.log('Original script content:', scriptContent);
-              console.log('Original ID:', originalId, 'Unique ID:', uniqueId);
               
               // Replace the original ID with the unique ID
               scriptContent = scriptContent.replace(
@@ -272,17 +236,10 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
                 `"${uniqueId}"`
               );
               
-              console.log('Updated script content:', scriptContent);
-              
               // Extract data and layout from the script
               try {
-                // Try to parse the script to extract data and layout
-                // Pattern: var data = [...]; var layout = {...}; Plotly.newPlot(...)
                 const dataMatch = scriptContent.match(/var\s+data\s*=\s*(\[[\s\S]*?\]);/);
                 const layoutMatch = scriptContent.match(/var\s+layout\s*=\s*(\{[\s\S]*?\});/);
-                
-                console.log('Data match:', dataMatch ? 'Found' : 'Not found', dataMatch?.[1]?.substring(0, 100));
-                console.log('Layout match:', layoutMatch ? 'Found' : 'Not found', layoutMatch?.[1]?.substring(0, 100));
                 
                 if (dataMatch && layoutMatch) {
                   try {
@@ -290,12 +247,8 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
                     let data, layout;
                     
                     try {
-                      // Try parsing as JSON first
                       data = JSON.parse(dataMatch[1]);
-                      console.log('Data parsed as JSON');
                     } catch {
-                      // If not valid JSON, use Function constructor (with eslint disable)
-                      console.log('Parsing data with Function constructor');
                       // eslint-disable-next-line no-new-func
                       const parseData = new Function('return ' + dataMatch[1]);
                       data = parseData();
@@ -303,35 +256,25 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
                     
                     try {
                       layout = JSON.parse(layoutMatch[1]);
-                      console.log('Layout parsed as JSON');
                     } catch {
-                      console.log('Parsing layout with Function constructor');
                       // eslint-disable-next-line no-new-func
                       const parseLayout = new Function('return ' + layoutMatch[1]);
                       layout = parseLayout();
                     }
                     
-                    console.log('Parsed data:', data);
-                    console.log('Parsed layout:', layout);
-                    console.log('Rendering Plotly chart with ID:', uniqueId);
-                    
                     // Use Plotly directly
-                    window.Plotly.newPlot(uniqueId, data, layout).then(() => {
-                      console.log('Plotly chart rendered successfully');
-                    }).catch(err => {
+                    window.Plotly.newPlot(uniqueId, data, layout).catch(err => {
                       console.error('Plotly render error:', err);
                     });
                   } catch (parseError) {
                     console.error('Error parsing Plotly data:', parseError);
                     // Fallback to executing script
-                    console.log('Falling back to script execution');
                     const newScript = document.createElement('script');
                     newScript.textContent = scriptContent;
                     containerRef.current.appendChild(newScript);
                   }
                 } else {
                   // Fallback: execute the script directly
-                  console.log('No data/layout match found, executing script directly');
                   const newScript = document.createElement('script');
                   newScript.textContent = scriptContent;
                   containerRef.current.appendChild(newScript);
@@ -364,11 +307,8 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
   }, [html, messageIndex]);
 
   if (!html) {
-    console.log('VisualizationRenderer: No HTML provided');
     return null;
   }
-
-  console.log('VisualizationRenderer: Rendering container div');
 
   return (
     <div 
@@ -450,7 +390,10 @@ function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Sidebar starts open on desktop, closed on mobile
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    return window.innerWidth > 768;
+  });
 
   // Handle login
   const handleLogin = (userData, authToken) => {
@@ -513,6 +456,22 @@ function App() {
     }
   }, [chats, activeChatId, user]);
 
+  // Handle window resize to adjust sidebar state for mobile/desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 768) {
+        setSidebarOpen(true);
+      } else {
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    // Set initial state on mount
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const activeChat = chats.find(chat => chat.id === activeChatId) || chats[0];
 
   const scrollToBottom = () => {
@@ -533,6 +492,10 @@ function App() {
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChat.id);
     setInput('');
+    // Close sidebar on mobile after creating new chat
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
   };
 
   const switchChat = (chatId) => {
@@ -640,12 +603,8 @@ function App() {
       }
 
       const data = await response.json();
-      console.log('Received response from API:', data);
-      console.log('Answer length:', data.answer?.length || 0);
-      console.log('Answer preview:', data.answer?.substring(0, 200) || 'No answer');
       
       const parsedContent = parseMessage(data.answer || 'No response received.');
-      console.log('Parsed content:', parsedContent);
       
       const assistantMessage = {
         role: 'assistant',
@@ -654,8 +613,6 @@ function App() {
         hasVisualization: parsedContent.hasVisualization,
         contexts: data.contexts || null,
       };
-      
-      console.log('Adding assistant message:', assistantMessage);
       
       // Update chat with assistant response
       setChats(prev => {
@@ -718,8 +675,13 @@ function App() {
   return (
     <div className="App">
       <div className="app-layout">
+        {/* Mobile backdrop */}
+        <div 
+          className={`sidebar-backdrop ${sidebarOpen ? 'active' : ''}`}
+          onClick={() => setSidebarOpen(false)}
+        />
         {/* Sidebar */}
-        <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+        <div className={`sidebar ${!sidebarOpen ? 'closed' : ''}`}>
           <div className="sidebar-header">
             <button className="new-chat-btn" onClick={createNewChat}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -743,7 +705,13 @@ function App() {
               <div
                 key={chat.id}
                 className={`chat-item ${activeChatId === chat.id ? 'active' : ''}`}
-                onClick={() => switchChat(chat.id)}
+                onClick={() => {
+                  switchChat(chat.id);
+                  // Close sidebar on mobile after selecting chat
+                  if (window.innerWidth <= 768) {
+                    setSidebarOpen(false);
+                  }
+                }}
               >
                 <div className="chat-item-content">
                   <div className="chat-item-title">{chat.title}</div>
