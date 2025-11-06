@@ -4,8 +4,13 @@ import json
 import time
 from config import settings
 
-
-TOKEN_FILE = "amplifi_token.json"
+# Use /tmp directory for serverless environments (Vercel, AWS Lambda, etc.)
+# In serverless, only /tmp is writable
+# For local development on Windows, use current directory
+if os.name == 'nt':  # Windows
+    TOKEN_FILE = "amplifi_token.json"
+else:  # Unix-like (Linux, macOS, Vercel)
+    TOKEN_FILE = "/tmp/amplifi_token.json"
 
 
 class AmplifiService:
@@ -20,9 +25,18 @@ class AmplifiService:
         self.chatapp_id = settings.AMPLIFI_CHAT_APP_ID
         self.chat_session_id = settings.AMPLIFI_CHAT_SESSION_ID
         
-        if not os.path.exists(TOKEN_FILE):
-            with open(TOKEN_FILE, 'w') as f:
-                json.dump({}, f)
+        # Initialize token file if it doesn't exist (handle permission errors gracefully)
+        try:
+            if not os.path.exists(TOKEN_FILE):
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
+                with open(TOKEN_FILE, 'w') as f:
+                    json.dump({}, f)
+        except (OSError, PermissionError) as e:
+            # In some serverless environments, file creation might fail
+            # We'll handle this gracefully and just skip caching
+            print(f"⚠️  Warning: Could not create token file at {TOKEN_FILE}: {e}")
+            print("⚠️  Token caching will be disabled. Tokens will be fetched on each request.")
         
         print("✅ AmplifiService Initialized")
 
@@ -67,10 +81,16 @@ class AmplifiService:
             expires_in = new_token_data.get('expires_in', 3600)
             new_token_data['expires_at'] = current_time + expires_in
             
-            with open(TOKEN_FILE, 'w') as f:
-                json.dump(new_token_data, f, indent=4)
+            # Try to save token to file (may fail in some serverless environments)
+            try:
+                os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
+                with open(TOKEN_FILE, 'w') as f:
+                    json.dump(new_token_data, f, indent=4)
+                print("AMPLIFI SERVICE: User Access Token saved.")
+            except (OSError, PermissionError) as e:
+                # If file write fails, continue without caching
+                print(f"⚠️  Warning: Could not save token to file: {e}")
             
-            print("AMPLIFI SERVICE: User Access Token saved.")
             # Return access_token (UUID) - this is what chat endpoints need
             return new_token_data.get('access_token')
         

@@ -34,4 +34,28 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
 # Create a single, importable instance of the settings
-settings = Settings()
+# Wrap in try-except to provide helpful error messages if env vars are missing
+try:
+    settings = Settings()
+except Exception as e:
+    import sys
+    error_msg = f"""
+    ⚠️  Configuration Error: Failed to load settings.
+    
+    This usually means required environment variables are missing.
+    
+    Required environment variables:
+    - MONGODB_URL
+    - SECRET_KEY
+    - AMPLIFI_API_URL
+    - AMPLIFI_USERNAME
+    - AMPLIFI_PASSWORD
+    - AMPLIFI_CHAT_APP_ID
+    - AMPLIFI_CHAT_SESSION_ID
+    
+    Error details: {str(e)}
+    
+    Please ensure all environment variables are set in your Vercel project settings.
+    """
+    print(error_msg, file=sys.stderr)
+    raise
