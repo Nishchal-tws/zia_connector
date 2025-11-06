@@ -41,31 +41,37 @@ app = FastAPI(
 )
 
 # Add CORS middleware to allow frontend requests
-# On Vercel, frontend and backend are on the same domain, so we allow all origins
-# For local development, allow localhost
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
-VERCEL_URL = os.getenv("VERCEL_URL", "")  # Vercel automatically sets this
+# Supports both same-domain (Vercel) and separate deployment (Render + Vercel)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "")
+VERCEL_URL = os.getenv("VERCEL_URL", "")  # Vercel automatically sets this (for same-domain deployment)
+
+# Build allowed origins list
 ALLOWED_ORIGINS = [
-    FRONTEND_URL,
     "http://localhost:3000",  # Local development
 ]
 
-# Add Vercel URL if it exists (format: your-app.vercel.app)
+# Add explicit frontend URL if set (for separate deployment: Render + Vercel)
+if FRONTEND_URL:
+    ALLOWED_ORIGINS.append(FRONTEND_URL)
+    # Also add without protocol if needed
+    if FRONTEND_URL.startswith("https://"):
+        ALLOWED_ORIGINS.append(FRONTEND_URL.replace("https://", "http://"))
+    elif FRONTEND_URL.startswith("http://"):
+        ALLOWED_ORIGINS.append(FRONTEND_URL.replace("http://", "https://"))
+
+# Add Vercel URL if it exists (for same-domain deployment)
 if VERCEL_URL:
-    # Add both with and without https
     ALLOWED_ORIGINS.extend([
         f"https://{VERCEL_URL}",
         f"http://{VERCEL_URL}",
     ])
 
-# For separate deployment (Render + Vercel), add frontend URL explicitly
-# If FRONTEND_URL is set, use it; otherwise allow all for development
-if not FRONTEND_URL or FRONTEND_URL == "http://localhost:3000":
-    # Development or same-domain deployment: allow all
+# For separate deployment, if FRONTEND_URL is not set, allow all origins
+# This ensures it works immediately, but you should set FRONTEND_URL in Render for security
+if not FRONTEND_URL:
+    # Allow all origins if FRONTEND_URL is not set (works for testing)
+    # TODO: Set FRONTEND_URL in Render environment variables for production
     ALLOWED_ORIGINS = ["*"]
-else:
-    # Production with separate deployment: use specific origins
-    ALLOWED_ORIGINS.append(FRONTEND_URL)
 
 app.add_middleware(
     CORSMiddleware,
