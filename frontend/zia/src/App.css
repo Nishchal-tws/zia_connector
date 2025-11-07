@@ -444,6 +444,165 @@ html, body {
   margin: 4px 0;
 }
 
+/* Markdown table styles */
+.table-wrapper {
+  margin: 16px 0;
+  overflow-x: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: white;
+}
+
+.markdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 14px;
+  min-width: 100%;
+}
+
+.markdown-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.markdown-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.markdown-table th:first-child {
+  border-top-left-radius: 8px;
+}
+
+.markdown-table th:last-child {
+  border-top-right-radius: 8px;
+}
+
+.markdown-table tbody tr {
+  border-bottom: 1px solid #e8e8e8;
+  transition: background-color 0.2s ease;
+}
+
+.markdown-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.markdown-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.markdown-table td {
+  padding: 12px 16px;
+  color: #333;
+  line-height: 1.5;
+}
+
+.markdown-table tbody tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+.markdown-table tbody tr:nth-child(even):hover {
+  background-color: #f0f0f0;
+}
+
+.markdown-table td strong {
+  font-weight: 600;
+  color: #667eea;
+}
+
+/* Table styling for user messages */
+.message.user .table-wrapper {
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.message.user .markdown-table {
+  background: transparent;
+}
+
+.message.user .markdown-table thead {
+  background: rgba(255, 255, 255, 0.2);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.message.user .markdown-table th {
+  color: white;
+  border-bottom-color: rgba(255, 255, 255, 0.3);
+}
+
+.message.user .markdown-table td {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.message.user .markdown-table tbody tr {
+  border-bottom-color: rgba(255, 255, 255, 0.2);
+}
+
+.message.user .markdown-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.message.user .markdown-table tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.message.user .markdown-table tbody tr:nth-child(even):hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.message.user .markdown-table td strong {
+  color: rgba(255, 255, 255, 1);
+  font-weight: 700;
+}
+
+/* Responsive table styles */
+@media (max-width: 768px) {
+  .table-wrapper {
+    margin: 12px 0;
+    border-radius: 6px;
+  }
+
+  .markdown-table {
+    font-size: 13px;
+  }
+
+  .markdown-table th,
+  .markdown-table td {
+    padding: 10px 12px;
+  }
+
+  .markdown-table th {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .table-wrapper {
+    margin: 10px 0;
+    border-radius: 4px;
+  }
+
+  .markdown-table {
+    font-size: 12px;
+  }
+
+  .markdown-table th,
+  .markdown-table td {
+    padding: 8px 10px;
+  }
+
+  .markdown-table th {
+    font-size: 11px;
+    padding: 10px 8px;
+  }
+}
+
 .contexts {
   margin-top: 8px;
   padding-top: 8px;

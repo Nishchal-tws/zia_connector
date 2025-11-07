@@ -54,64 +54,156 @@ const escapeHtml = (text) => {
 const formatMessage = (text) => {
   if (!text) return '';
   
-  // Split into lines and process each line
-  const lines = text.split('\n');
-  const formattedLines = lines.map(line => {
+  // First, detect and extract markdown tables from the original text
+  // This regex matches markdown table patterns: | col1 | col2 | followed by separator |---|---| and data rows
+  // Handles tables that may start/end with | or not, and may have varying separator formats
+  const tableRegex = /(\|[^\n]*\|\s*\n\s*\|[-\s|:]+\|\s*\n(?:\s*\|[^\n]*\|\s*\n?)+)/g;
+  const tableMatches = [];
+  let tableIndex = 0;
+  
+  // Replace tables with placeholders and store them for later processing
+  let textWithPlaceholders = text.replace(tableRegex, (match) => {
+    const placeholder = `__TABLE_PLACEHOLDER_${tableIndex}__`;
+    tableMatches[tableIndex] = match;
+    tableIndex++;
+    return placeholder;
+  });
+  
+  // Now process the text with placeholders line by line
+  const lines = textWithPlaceholders.split('\n');
+  const formattedParts = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const trimmed = line.trim();
     
-    // Remove markdown headers (lines starting with #)
+    // Check if this line is a table placeholder
+    const placeholderMatch = line.match(/__TABLE_PLACEHOLDER_(\d+)__/);
+    if (placeholderMatch) {
+      const tableIdx = parseInt(placeholderMatch[1]);
+      const tableMarkdown = tableMatches[tableIdx];
+      
+      // Convert markdown table to HTML
+      const rows = tableMarkdown.trim().split('\n').filter(row => row.trim() && row.includes('|'));
+      if (rows.length >= 2) {
+        // Find separator row (contains dashes and pipes)
+        let separatorIndex = -1;
+        for (let j = 1; j < rows.length; j++) {
+          if (/^[\s|:-\s]+$/.test(rows[j])) {
+            separatorIndex = j;
+            break;
+          }
+        }
+        
+        // If no separator found, treat first row as header and rest as data
+        const headerRow = rows[0];
+        const dataRows = separatorIndex > 0 ? rows.slice(separatorIndex + 1) : rows.slice(1);
+        
+        // Parse header cells
+        // Split by | and filter out empty strings at start/end (from leading/trailing |)
+        const headerParts = headerRow.split('|');
+        const headerCells = headerParts
+          .slice(headerParts[0].trim() === '' ? 1 : 0, headerParts[headerParts.length - 1].trim() === '' ? -1 : undefined)
+          .map(cell => {
+            const trimmed = cell.trim();
+            const escapedCell = escapeHtml(trimmed);
+            const boldCell = escapedCell.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            return `<th>${boldCell}</th>`;
+          })
+          .join('');
+        
+        // Parse data rows
+        const bodyRows = dataRows
+          .filter(row => row.trim() && row.includes('|'))
+          .map(row => {
+            const rowParts = row.split('|');
+            const cells = rowParts
+              .slice(rowParts[0].trim() === '' ? 1 : 0, rowParts[rowParts.length - 1].trim() === '' ? -1 : undefined)
+              .map(cell => {
+                const trimmed = cell.trim();
+                // Process bold markdown in cells
+                const escapedCell = escapeHtml(trimmed);
+                const boldCell = escapedCell.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                return `<td>${boldCell}</td>`;
+              })
+              .join('');
+            
+            // Only add row if it has cells matching header count
+            if (cells) {
+              return `<tr>${cells}</tr>`;
+            }
+            return '';
+          })
+          .filter(row => row)
+          .join('');
+        
+        // Only render table if we have valid header and at least some content
+        if (headerCells && (bodyRows || dataRows.length === 0)) {
+          formattedParts.push(`
+            <div class="table-wrapper">
+              <table class="markdown-table">
+                <thead><tr>${headerCells}</tr></thead>
+                ${bodyRows ? `<tbody>${bodyRows}</tbody>` : '<tbody><tr><td colspan="100%">No data</td></tr></tbody>'}
+              </table>
+            </div>
+          `);
+        }
+      }
+      continue;
+    }
+    
+    // Handle markdown headers (lines starting with #)
     if (trimmed.startsWith('#')) {
-      // Remove all # characters and trim
       const content = trimmed.replace(/^#+\s*/g, '').trim();
       if (content) {
-        // Escape HTML first, then convert markdown bold
         const escapedContent = escapeHtml(content);
         const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        return `<div class="regular-line" style="font-weight: 600; font-size: 1.1em; margin-top: 12px; margin-bottom: 8px;">${boldContent}</div>`;
+        formattedParts.push(`<div class="regular-line" style="font-weight: 600; font-size: 1.1em; margin-top: 12px; margin-bottom: 8px;">${boldContent}</div>`);
       }
-      return '';
+      continue;
     }
     
     // Handle bullet points with •
     if (trimmed.startsWith('•')) {
       const content = trimmed.substring(1).trim();
-      // Escape HTML first, then convert markdown bold
       const escapedContent = escapeHtml(content);
       const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      return `<div class="bullet-point">${boldContent}</div>`;
+      formattedParts.push(`<div class="bullet-point">${boldContent}</div>`);
+      continue;
     }
     
     // Handle lines starting with * (but not **)
     if (trimmed.startsWith('*') && !trimmed.startsWith('**')) {
       const content = trimmed.substring(1).trim();
-      // Escape HTML first, then convert markdown bold
       const escapedContent = escapeHtml(content);
       const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      return `<div class="bullet-point">${boldContent}</div>`;
+      formattedParts.push(`<div class="bullet-point">${boldContent}</div>`);
+      continue;
     }
     
     // Handle indented lines with ◦ or spaces
     if (trimmed.startsWith('◦') || (line.startsWith('   ') && !trimmed.startsWith('*') && !trimmed.startsWith('•'))) {
       const content = trimmed.replace(/^◦\s*/, '').trim();
-      // Escape HTML for safety
       const escapedContent = escapeHtml(content);
-      return `<div class="indented-item">${escapedContent}</div>`;
+      formattedParts.push(`<div class="indented-item">${escapedContent}</div>`);
+      continue;
     }
     
     // Regular lines - convert **bold** but keep as regular paragraph
     if (trimmed) {
-      // Escape HTML first, then convert markdown bold
       const escapedContent = escapeHtml(trimmed);
       const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      return `<div class="regular-line">${boldContent}</div>`;
+      formattedParts.push(`<div class="regular-line">${boldContent}</div>`);
+      continue;
     }
     
     // Empty lines
-    return '<br>';
-  });
+    formattedParts.push('<br>');
+  }
   
-  return formattedLines.join('');
+  return formattedParts.join('');
 };
+
 
 // Component to render visualization
 const VisualizationRenderer = ({ html, messageIndex }) => {
