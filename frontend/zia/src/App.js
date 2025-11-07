@@ -60,7 +60,7 @@ const convertMarkdownTable = (tableText) => {
   for (let j = 1; j < Math.min(rows.length, 5); j++) {
     const row = rows[j].trim();
     // Check if it's a separator: contains | and dashes, mostly dashes/pipes/colons/spaces
-    if (row.includes('|') && /^[\s|:\-]+$/.test(row)) {
+    if (row.includes('|') && /^[\s|:-]+$/.test(row)) {
       separatorIndex = j;
       break;
     }
@@ -149,7 +149,7 @@ const formatMessage = (text) => {
         const nextLine = lines[j];
         
         // Check if it's a separator line
-        if (!foundSeparator && nextLine.includes('|') && /^[\s|:\-]+$/.test(nextLine.trim())) {
+        if (!foundSeparator && nextLine.includes('|') && /^[\s|:-]+$/.test(nextLine.trim())) {
           foundSeparator = true;
           tableLines.push(nextLine);
           j++;
