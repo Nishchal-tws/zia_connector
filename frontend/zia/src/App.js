@@ -50,155 +50,257 @@ const escapeHtml = (text) => {
   return text.replace(/[&<>"']/g, (m) => map[m]);
 };
 
+// Function to convert markdown table to HTML
+const convertMarkdownTable = (tableText) => {
+  const rows = tableText.trim().split('\n').filter(row => row.trim());
+  if (rows.length < 2) return null;
+  
+  // Find separator row (contains dashes, pipes, and optionally colons)
+  let separatorIndex = -1;
+  for (let j = 1; j < Math.min(rows.length, 5); j++) {
+    const row = rows[j].trim();
+    // Check if it's a separator: contains | and dashes, mostly dashes/pipes/colons/spaces
+    if (row.includes('|') && /^[\s|:\-]+$/.test(row)) {
+      separatorIndex = j;
+      break;
+    }
+  }
+  
+  // Header row
+  const headerRow = rows[0];
+  // Data rows (skip separator if found)
+  const dataRows = separatorIndex > 0 ? rows.slice(separatorIndex + 1) : rows.slice(1);
+  
+  // Parse header cells
+  const parseRow = (row) => {
+    const parts = row.split('|').map(p => p.trim());
+    // Remove empty strings at start/end if row starts/ends with |
+    if (parts.length > 0 && parts[0] === '' && row.trim().startsWith('|')) {
+      parts.shift();
+    }
+    if (parts.length > 0 && parts[parts.length - 1] === '' && row.trim().endsWith('|')) {
+      parts.pop();
+    }
+    return parts;
+  };
+  
+  const headerCells = parseRow(headerRow)
+    .map(cell => {
+      // Escape HTML but allow markdown bold
+      const escaped = escapeHtml(cell);
+      const withBold = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      return `<th>${withBold}</th>`;
+    })
+    .join('');
+  
+  // Parse data rows
+  const bodyRows = dataRows
+    .filter(row => row.trim() && row.includes('|'))
+    .map(row => {
+      const cells = parseRow(row)
+        .map(cell => {
+          const escaped = escapeHtml(cell);
+          const withBold = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+          return `<td>${withBold}</td>`;
+        })
+        .join('');
+      
+      return cells ? `<tr>${cells}</tr>` : '';
+    })
+    .filter(row => row)
+    .join('');
+  
+  if (!headerCells) return null;
+  
+  return `
+    <div class="table-wrapper">
+      <table class="markdown-table">
+        <thead><tr>${headerCells}</tr></thead>
+        <tbody>${bodyRows || '<tr><td colspan="100%">No data</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+};
+
 // Function to format markdown text into clean HTML
 const formatMessage = (text) => {
   if (!text) return '';
   
-  // First, detect and extract markdown tables from the original text
-  // This regex matches markdown table patterns: | col1 | col2 | followed by separator |---|---| and data rows
-  // Handles tables that may start/end with | or not, and may have varying separator formats
-  const tableRegex = /(\|[^\n]*\|\s*\n\s*\|[-\s|:]+\|\s*\n(?:\s*\|[^\n]*\|\s*\n?)+)/g;
-  const tableMatches = [];
-  let tableIndex = 0;
+  // Step 1: Detect and extract markdown tables
+  // More flexible regex: matches table blocks with header, separator, and data rows
+  // Pattern: lines with |, then separator line with dashes, then more lines with |
+  const lines = text.split('\n');
+  const processedParts = [];
+  let i = 0;
   
-  // Replace tables with placeholders and store them for later processing
-  let textWithPlaceholders = text.replace(tableRegex, (match) => {
-    const placeholder = `__TABLE_PLACEHOLDER_${tableIndex}__`;
-    tableMatches[tableIndex] = match;
-    tableIndex++;
-    return placeholder;
-  });
-  
-  // Now process the text with placeholders line by line
-  const lines = textWithPlaceholders.split('\n');
-  const formattedParts = [];
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
+  while (i < lines.length) {
+    // Check if current line looks like it might be part of a table
+    const currentLine = lines[i];
     
-    // Check if this line is a table placeholder
-    const placeholderMatch = line.match(/__TABLE_PLACEHOLDER_(\d+)__/);
-    if (placeholderMatch) {
-      const tableIdx = parseInt(placeholderMatch[1]);
-      const tableMarkdown = tableMatches[tableIdx];
+    // Look for table pattern: line with |, followed by separator, followed by data rows
+    if (currentLine.includes('|')) {
+      // Try to find a complete table starting from this line
+      let tableLines = [currentLine];
+      let j = i + 1;
+      let foundSeparator = false;
       
-      // Convert markdown table to HTML
-      const rows = tableMarkdown.trim().split('\n').filter(row => row.trim() && row.includes('|'));
-      if (rows.length >= 2) {
-        // Find separator row (contains dashes and pipes)
-        let separatorIndex = -1;
-        for (let j = 1; j < rows.length; j++) {
-          if (/^[\s|:-\s]+$/.test(rows[j])) {
-            separatorIndex = j;
+      // Look ahead for separator and data rows
+      while (j < lines.length && j < i + 50) { // Limit search to prevent issues
+        const nextLine = lines[j];
+        
+        // Check if it's a separator line
+        if (!foundSeparator && nextLine.includes('|') && /^[\s|:\-]+$/.test(nextLine.trim())) {
+          foundSeparator = true;
+          tableLines.push(nextLine);
+          j++;
+          continue;
+        }
+        
+        // If we found separator, look for data rows
+        if (foundSeparator) {
+          if (nextLine.includes('|') && nextLine.trim()) {
+            tableLines.push(nextLine);
+            j++;
+          } else if (nextLine.trim() === '') {
+            // Empty line might be part of table or end of table
+            tableLines.push(nextLine);
+            j++;
+            // If next non-empty line doesn't have |, end the table
+            let k = j;
+            while (k < lines.length && lines[k].trim() === '') k++;
+            if (k < lines.length && !lines[k].includes('|')) {
+              break;
+            }
+          } else {
+            // Non-table line, end table
+            break;
+          }
+        } else {
+          // Haven't found separator yet
+          if (nextLine.includes('|') && nextLine.trim()) {
+            tableLines.push(nextLine);
+            j++;
+          } else if (nextLine.trim() === '' && j < i + 3) {
+            // Allow one empty line early on
+            j++;
+          } else {
+            // Not a table, break
             break;
           }
         }
+      }
+      
+      // If we found a separator and have at least 3 lines (header + separator + at least 1 data row)
+      if (foundSeparator && tableLines.length >= 3) {
+        const tableText = tableLines.join('\n');
+        const tableHTML = convertMarkdownTable(tableText);
         
-        // If no separator found, treat first row as header and rest as data
-        const headerRow = rows[0];
-        const dataRows = separatorIndex > 0 ? rows.slice(separatorIndex + 1) : rows.slice(1);
-        
-        // Parse header cells
-        // Split by | and filter out empty strings at start/end (from leading/trailing |)
-        const headerParts = headerRow.split('|');
-        const headerCells = headerParts
-          .slice(headerParts[0].trim() === '' ? 1 : 0, headerParts[headerParts.length - 1].trim() === '' ? -1 : undefined)
-          .map(cell => {
-            const trimmed = cell.trim();
-            const escapedCell = escapeHtml(trimmed);
-            const boldCell = escapedCell.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            return `<th>${boldCell}</th>`;
-          })
-          .join('');
-        
-        // Parse data rows
-        const bodyRows = dataRows
-          .filter(row => row.trim() && row.includes('|'))
-          .map(row => {
-            const rowParts = row.split('|');
-            const cells = rowParts
-              .slice(rowParts[0].trim() === '' ? 1 : 0, rowParts[rowParts.length - 1].trim() === '' ? -1 : undefined)
-              .map(cell => {
-                const trimmed = cell.trim();
-                // Process bold markdown in cells
-                const escapedCell = escapeHtml(trimmed);
-                const boldCell = escapedCell.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                return `<td>${boldCell}</td>`;
-              })
-              .join('');
-            
-            // Only add row if it has cells matching header count
-            if (cells) {
-              return `<tr>${cells}</tr>`;
-            }
-            return '';
-          })
-          .filter(row => row)
-          .join('');
-        
-        // Only render table if we have valid header and at least some content
-        if (headerCells && (bodyRows || dataRows.length === 0)) {
-          formattedParts.push(`
-            <div class="table-wrapper">
-              <table class="markdown-table">
-                <thead><tr>${headerCells}</tr></thead>
-                ${bodyRows ? `<tbody>${bodyRows}</tbody>` : '<tbody><tr><td colspan="100%">No data</td></tr></tbody>'}
-              </table>
-            </div>
-          `);
+        if (tableHTML) {
+          // Valid table found, add it and skip those lines
+          processedParts.push({ type: 'table', content: tableHTML });
+          i = j;
+          continue;
         }
       }
-      continue;
+      
+      // If we have multiple lines with | but no separator, it might still be a table
+      // Check if we have at least 2 lines with | and they look like table rows
+      if (!foundSeparator && tableLines.length >= 2) {
+        // Check if all lines have similar structure (similar number of | characters)
+        const pipeCounts = tableLines.map(l => (l.match(/\|/g) || []).length);
+        const firstPipeCount = pipeCounts[0];
+        const allSimilar = pipeCounts.every(count => Math.abs(count - firstPipeCount) <= 1);
+        
+        if (allSimilar && firstPipeCount >= 2) {
+          // Might be a table without separator, try converting it
+          const tableText = tableLines.join('\n');
+          const tableHTML = convertMarkdownTable(tableText);
+          
+          if (tableHTML) {
+            processedParts.push({ type: 'table', content: tableHTML });
+            i = j;
+            continue;
+          }
+        }
+      }
+      
+      // If it wasn't a valid table, treat first line as regular text
     }
     
-    // Handle markdown headers (lines starting with #)
-    if (trimmed.startsWith('#')) {
-      const content = trimmed.replace(/^#+\s*/g, '').trim();
-      if (content) {
+    // Not a table line, process as regular text
+    processedParts.push({ type: 'line', content: currentLine });
+    i++;
+  }
+  
+  // Step 2: Format each part
+  const formattedParts = [];
+  
+  for (let idx = 0; idx < processedParts.length; idx++) {
+    const part = processedParts[idx];
+    if (part.type === 'table') {
+      // Table HTML is already ready, just add it
+      // Add spacing before table if previous part was not a table
+      if (idx > 0 && processedParts[idx - 1].type !== 'table') {
+        formattedParts.push('<br>');
+      }
+      formattedParts.push(part.content);
+      // Add spacing after table if next part is not a table
+      if (idx < processedParts.length - 1 && processedParts[idx + 1].type !== 'table') {
+        formattedParts.push('<br>');
+      }
+    } else {
+      // Process as regular line
+      const line = part.content;
+      const trimmed = line.trim();
+      
+      // Handle markdown headers (lines starting with #)
+      if (trimmed.startsWith('#')) {
+        const content = trimmed.replace(/^#+\s*/g, '').trim();
+        if (content) {
+          const escapedContent = escapeHtml(content);
+          const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+          formattedParts.push(`<div class="regular-line" style="font-weight: 600; font-size: 1.1em; margin-top: 12px; margin-bottom: 8px;">${boldContent}</div>`);
+        }
+        continue;
+      }
+      
+      // Handle bullet points with •
+      if (trimmed.startsWith('•')) {
+        const content = trimmed.substring(1).trim();
         const escapedContent = escapeHtml(content);
         const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        formattedParts.push(`<div class="regular-line" style="font-weight: 600; font-size: 1.1em; margin-top: 12px; margin-bottom: 8px;">${boldContent}</div>`);
+        formattedParts.push(`<div class="bullet-point">${boldContent}</div>`);
+        continue;
       }
-      continue;
+      
+      // Handle lines starting with * (but not **)
+      if (trimmed.startsWith('*') && !trimmed.startsWith('**')) {
+        const content = trimmed.substring(1).trim();
+        const escapedContent = escapeHtml(content);
+        const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        formattedParts.push(`<div class="bullet-point">${boldContent}</div>`);
+        continue;
+      }
+      
+      // Handle indented lines with ◦ or spaces
+      if (trimmed.startsWith('◦') || (line.startsWith('   ') && !trimmed.startsWith('*') && !trimmed.startsWith('•'))) {
+        const content = trimmed.replace(/^◦\s*/, '').trim();
+        const escapedContent = escapeHtml(content);
+        formattedParts.push(`<div class="indented-item">${escapedContent}</div>`);
+        continue;
+      }
+      
+      // Regular lines - convert **bold** but keep as regular paragraph
+      if (trimmed) {
+        const escapedContent = escapeHtml(trimmed);
+        const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        formattedParts.push(`<div class="regular-line">${boldContent}</div>`);
+        continue;
+      }
+      
+      // Empty lines
+      formattedParts.push('<br>');
     }
-    
-    // Handle bullet points with •
-    if (trimmed.startsWith('•')) {
-      const content = trimmed.substring(1).trim();
-      const escapedContent = escapeHtml(content);
-      const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      formattedParts.push(`<div class="bullet-point">${boldContent}</div>`);
-      continue;
-    }
-    
-    // Handle lines starting with * (but not **)
-    if (trimmed.startsWith('*') && !trimmed.startsWith('**')) {
-      const content = trimmed.substring(1).trim();
-      const escapedContent = escapeHtml(content);
-      const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      formattedParts.push(`<div class="bullet-point">${boldContent}</div>`);
-      continue;
-    }
-    
-    // Handle indented lines with ◦ or spaces
-    if (trimmed.startsWith('◦') || (line.startsWith('   ') && !trimmed.startsWith('*') && !trimmed.startsWith('•'))) {
-      const content = trimmed.replace(/^◦\s*/, '').trim();
-      const escapedContent = escapeHtml(content);
-      formattedParts.push(`<div class="indented-item">${escapedContent}</div>`);
-      continue;
-    }
-    
-    // Regular lines - convert **bold** but keep as regular paragraph
-    if (trimmed) {
-      const escapedContent = escapeHtml(trimmed);
-      const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      formattedParts.push(`<div class="regular-line">${boldContent}</div>`);
-      continue;
-    }
-    
-    // Empty lines
-    formattedParts.push('<br>');
   }
   
   return formattedParts.join('');
