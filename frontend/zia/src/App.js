@@ -259,7 +259,7 @@ const formatMessage = (text) => {
         if (content) {
           const escapedContent = escapeHtml(content);
           const boldContent = escapedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-          formattedParts.push(`<div class="regular-line" style="font-weight: 600; font-size: 1.1em; margin-top: 12px; margin-bottom: 8px;">${boldContent}</div>`);
+          formattedParts.push(`<div class="regular-line" style="font-weight: 600; font-size: 1.1em; margin-top: 0px; margin-bottom: 0px;">${boldContent}</div>`);
         }
         continue;
       }
@@ -300,7 +300,7 @@ const formatMessage = (text) => {
       
       // Empty lines
       formattedParts.push('<br>');
-    }
+    } 
   }
   
   return formattedParts.join('');
@@ -409,7 +409,7 @@ const VisualizationRenderer = ({ html, messageIndex }) => {
             newChartDiv.style.cssText = chartDiv.style.cssText;
           } else {
             // Set default styles if not provided
-            newChartDiv.style.height = chartDiv.style.height || '450px';
+            newChartDiv.style.height = chartDiv.style.height || '440px';
             newChartDiv.style.width = chartDiv.style.width || '100%';
           }
           
