@@ -7,6 +7,9 @@ from typing import Optional
 # --- Chat API ---
 class QueryRequest(BaseModel):
     query: str
+    chat_source: Optional[str] = None
+
+  
 
 class QueryResponse(BaseModel):
     answer: str

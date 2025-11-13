@@ -246,7 +246,10 @@ async def handle_query(
     Requires authentication.
     """
     try:
-        amplifi_response = amplifi.get_amplifi_response(request.query)
+        amplifi_response = amplifi.get_amplifi_response(
+            request.query,
+            request.chat_source,
+        )
         
         # Extract the answer from the response
         # Response structure: {"responses": [{"response": "..."}], "contexts": [...]}
@@ -268,6 +271,8 @@ async def handle_query(
             answer=answer,
             contexts=contexts
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process query: {e}")
 

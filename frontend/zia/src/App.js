@@ -1,12 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import './App.css';
 import Login from './Login';
+import ziaLogo from './assets/zialogo.svg';
 
 // Use relative path for API when deployed on Vercel (same domain)
 // Only use absolute URL if REACT_APP_API_URL is explicitly set (for local dev)
 const API_BASE = process.env.REACT_APP_API_URL || '';
 const API_URL = `${API_BASE}/api/v1/query`;
-
+const DEFAULT_CHAT_SOURCE = 'crm';
+const CHAT_SOURCES = [
+  { value: 'crm', label: 'Zoho CRM' },
+  { value: 'mail', label: 'Zoho Mail' },
+];
 
 // Function to parse message content and extract HTML visualizations
 const parseMessage = (text) => {
@@ -534,7 +539,15 @@ function App() {
 
   // Load chats from localStorage on mount (user-specific)
   const loadChatsFromStorage = () => {
-    if (!user) return [{ id: Date.now(), title: 'New Chat', messages: [], createdAt: new Date() }];
+    if (!user) {
+      return [{
+        id: Date.now(),
+        title: 'New Chat',
+        messages: [],
+        createdAt: new Date(),
+        chatSource: DEFAULT_CHAT_SOURCE,
+      }];
+    }
     
     try {
       const userStorageKey = `${STORAGE_KEY}_${user.email}`;
@@ -545,18 +558,33 @@ function App() {
         return parsed.map(chat => ({
           ...chat,
           createdAt: new Date(chat.createdAt),
-          messages: chat.messages || []
+          messages: chat.messages || [],
+          chatSource: chat.chatSource || DEFAULT_CHAT_SOURCE,
         }));
       }
     } catch (error) {
       console.error('Error loading chats from storage:', error);
     }
     // Default: create a new chat if nothing stored
-    return [{ id: Date.now(), title: 'New Chat', messages: [], createdAt: new Date() }];
+    return [{
+      id: Date.now(),
+      title: 'New Chat',
+      messages: [],
+      createdAt: new Date(),
+      chatSource: DEFAULT_CHAT_SOURCE,
+    }];
   };
 
   const [chats, setChats] = useState(() => {
-    if (!user) return [{ id: Date.now(), title: 'New Chat', messages: [], createdAt: new Date() }];
+    if (!user) {
+      return [{
+        id: Date.now(),
+        title: 'New Chat',
+        messages: [],
+        createdAt: new Date(),
+        chatSource: DEFAULT_CHAT_SOURCE,
+      }];
+    }
     return loadChatsFromStorage();
   });
   const [activeChatId, setActiveChatId] = useState(() => {
@@ -583,7 +611,12 @@ function App() {
   }, [user]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [notification, setNotification] = useState(null);
   const messagesEndRef = useRef(null);
+  const modelSelectorRef = useRef(null);
+  const profileMenuRef = useRef(null);
   // Sidebar starts open on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     return window.innerWidth > 768;
@@ -594,6 +627,8 @@ function App() {
     setUser(userData);
     setToken(authToken);
     setIsAuthenticated(true);
+    setProfileMenuOpen(false);
+    setModelMenuOpen(false);
     // Reload chats for this user
     const userStorageKey = `${STORAGE_KEY}_${userData.email}`;
     const stored = localStorage.getItem(userStorageKey);
@@ -602,21 +637,36 @@ function App() {
       setChats(parsed.map(chat => ({
         ...chat,
         createdAt: new Date(chat.createdAt),
-        messages: chat.messages || []
+        messages: chat.messages || [],
+        chatSource: chat.chatSource || DEFAULT_CHAT_SOURCE,
       })));
     } else {
-      setChats([{ id: Date.now(), title: 'New Chat', messages: [], createdAt: new Date() }]);
+      setChats([{
+        id: Date.now(),
+        title: 'New Chat',
+        messages: [],
+        createdAt: new Date(),
+        chatSource: DEFAULT_CHAT_SOURCE,
+      }]);
     }
   };
 
   // Handle logout
   const handleLogout = () => {
+    setProfileMenuOpen(false);
+    setModelMenuOpen(false);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     setUser(null);
     setToken(null);
     setIsAuthenticated(false);
-    setChats([{ id: Date.now(), title: 'New Chat', messages: [], createdAt: new Date() }]);
+    setChats([{
+      id: Date.now(),
+      title: 'New Chat',
+      messages: [],
+      createdAt: new Date(),
+      chatSource: DEFAULT_CHAT_SOURCE,
+    }]);
     setActiveChatId(null);
   };
 
@@ -667,6 +717,13 @@ function App() {
   }, []);
 
   const activeChat = chats.find(chat => chat.id === activeChatId) || chats[0];
+  const currentChatSource = activeChat?.chatSource || DEFAULT_CHAT_SOURCE;
+  const currentChatLabel =
+    CHAT_SOURCES.find((source) => source.value === currentChatSource)?.label || 'Zoho CRM';
+  const userDisplayName = user?.username || user?.email || 'User';
+  const userEmail = user?.email;
+  const userInitial = userDisplayName.charAt(0).toUpperCase();
+  const isClearDisabled = !activeChat || activeChat.messages.length === 0;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -676,12 +733,29 @@ function App() {
     scrollToBottom();
   }, [activeChat?.messages]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (modelSelectorRef.current && !modelSelectorRef.current.contains(event.target)) {
+        setModelMenuOpen(false);
+      }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const createNewChat = () => {
     const newChat = {
       id: Date.now(),
       title: 'New Chat',
       messages: [],
-      createdAt: new Date()
+      createdAt: new Date(),
+      chatSource: activeChat?.chatSource || DEFAULT_CHAT_SOURCE,
     };
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChat.id);
@@ -709,6 +783,67 @@ function App() {
         createNewChat();
       }
     }
+  };
+
+  const handleChatSourceChange = (newSource) => {
+    if (!activeChatId) {
+      setModelMenuOpen(false);
+      return;
+    }
+    const normalizedSource = (newSource || DEFAULT_CHAT_SOURCE).toLowerCase();
+    const currentSource = activeChat?.chatSource || DEFAULT_CHAT_SOURCE;
+    
+    // Only proceed if source actually changed
+    if (normalizedSource === currentSource) {
+      setModelMenuOpen(false);
+      return;
+    }
+    
+    // Get the label for the notification
+    const sourceLabel = CHAT_SOURCES.find(s => s.value === normalizedSource)?.label || normalizedSource;
+    
+    // Show notification
+    setNotification({
+      message: `Switched to ${sourceLabel} data source`,
+      type: 'success'
+    });
+    
+    // Auto-hide notification after 3 seconds
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+    
+    // Create a new chat with the new source
+    const newChat = {
+      id: Date.now(),
+      title: 'New Chat',
+      messages: [],
+      createdAt: new Date(),
+      chatSource: normalizedSource,
+    };
+    
+    setChats(prev => [newChat, ...prev]);
+    setActiveChatId(newChat.id);
+    setInput('');
+    setModelMenuOpen(false);
+    
+    // Close sidebar on mobile after switching
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const handleModelSelect = (sourceValue) => {
+    handleChatSourceChange(sourceValue);
+  };
+
+  const toggleModelMenu = () => {
+    if (loading) return;
+    setModelMenuOpen(prev => !prev);
+  };
+
+  const toggleProfileMenu = () => {
+    setProfileMenuOpen(prev => !prev);
   };
 
   const updateChatTitle = (chatId, messages) => {
@@ -784,7 +919,10 @@ function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ query: messageContent }),
+        body: JSON.stringify({
+          query: messageContent,
+          chat_source: activeChat?.chatSource || DEFAULT_CHAT_SOURCE,
+        }),
       });
 
       if (!response.ok) {
@@ -868,6 +1006,17 @@ function App() {
 
   return (
     <div className="App">
+      {notification && (
+        <div className={`notification notification-${notification.type}`}>
+          <div className="notification-content">
+            <svg className="notification-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <span>{notification.message}</span>
+          </div>
+        </div>
+      )}
       <div className="app-layout">
         {/* Mobile backdrop */}
         <div 
@@ -876,15 +1025,9 @@ function App() {
         />
         {/* Sidebar */}
         <div className={`sidebar ${!sidebarOpen ? 'closed' : ''}`}>
-          <div className="sidebar-header">
-            <button className="new-chat-btn" onClick={createNewChat}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              New Chat
-            </button>
-            <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <div className="sidebar-top">
+            <img src={ziaLogo} alt="Zia" className="zia-logo" />
+            <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} type="button">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 {sidebarOpen ? (
                   <polyline points="15 18 9 12 15 6"></polyline>
@@ -892,6 +1035,15 @@ function App() {
                   <polyline points="9 18 15 12 9 6"></polyline>
                 )}
               </svg>
+            </button>
+          </div>
+          <div className="sidebar-actions">
+            <button className="new-chat-btn" onClick={createNewChat} type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              New Chat
             </button>
           </div>
           <div className="chat-list">
@@ -926,6 +1078,17 @@ function App() {
               </div>
             ))}
           </div>
+          <div className="sidebar-footer">
+            <button
+              className="clear-btn"
+              onClick={clearChat}
+              title="Clear chat"
+              type="button"
+              disabled={isClearDisabled}
+            >
+              Clear Chat
+            </button>
+          </div>
         </div>
 
         {/* Main Chat Area */}
@@ -936,6 +1099,7 @@ function App() {
                 className="menu-toggle-btn" 
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+                type="button"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="3" y1="12" x2="21" y2="12"></line>
@@ -943,16 +1107,67 @@ function App() {
                   <line x1="3" y1="18" x2="21" y2="18"></line>
                 </svg>
               </button>
-              <h1>Zia</h1>
-              {user && <span className="user-info">Welcome, {user.username || user.email}</span>}
+              <div className="model-selector-wrapper" ref={modelSelectorRef}>
+                <button
+                  className={`model-selector ${modelMenuOpen ? 'open' : ''}`}
+                  onClick={toggleModelMenu}
+                  disabled={loading}
+                  type="button"
+                >
+                  <span className="model-label">{currentChatLabel}</span>
+                  <span className="dropdown-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </span>
+                </button>
+                {modelMenuOpen && (
+                  <div className="model-dropdown">
+                    {CHAT_SOURCES.map((source) => {
+                      const isActive = currentChatSource === source.value;
+                      return (
+                        <button
+                          key={source.value}
+                          className={`model-option ${isActive ? 'active' : ''}`}
+                          onClick={() => handleModelSelect(source.value)}
+                          type="button"
+                        >
+                          <span>{source.label}</span>
+                          {isActive && (
+                            <svg className="model-option-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="chat-header-right">
-              <button className="clear-btn" onClick={clearChat} title="Clear chat">
-                Clear
+            <div className="chat-header-right" ref={profileMenuRef}>
+              <button
+                className={`profile-button ${profileMenuOpen ? 'open' : ''}`}
+                onClick={toggleProfileMenu}
+                type="button"
+                title="Account options"
+              >
+                <span className="profile-initial">{userInitial}</span>
+                <svg className={`profile-dropdown-icon ${profileMenuOpen ? 'open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
               </button>
-              <button className="logout-btn" onClick={handleLogout} title="Logout">
-                Logout
-              </button>
+              {profileMenuOpen && (
+                <div className="profile-menu">
+                  <div className="profile-details">
+                    <span className="profile-name">{userDisplayName}</span>
+                    {userEmail && <span className="profile-email">{userEmail}</span>}
+                  </div>
+                  <button className="profile-logout-btn" onClick={handleLogout} type="button">
+                    Logout
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           

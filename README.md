@@ -54,8 +54,10 @@ A modern, full-stack chat application that connects to Amplifi's AI-powered chat
    AMPLIFI_API_URL=https://your-amplifi-api-url.com
    AMPLIFI_USERNAME=your_username
    AMPLIFI_PASSWORD=your_password
-   AMPLIFI_CHAT_APP_ID=your_chat_app_id
-   AMPLIFI_CHAT_SESSION_ID=your_chat_session_id
+   AMPLIFI_CRM_CHAT_APP_ID=your_crm_chat_app_id
+   AMPLIFI_CRM_CHAT_SESSION_ID=your_crm_chat_session_id
+   AMPLIFI_MAIL_CHAT_APP_ID=your_mail_chat_app_id
+   AMPLIFI_MAIL_CHAT_SESSION_ID=your_mail_chat_session_id
 
    # MongoDB Atlas Configuration
    # Replace with your actual MongoDB Atlas connection string
@@ -166,7 +168,8 @@ zia_amplifi_connector/
 
 - `POST /api/v1/query` - Send a query to Amplifi
   - Headers: `Authorization: Bearer <token>`
-  - Request body: `{ "query": "your question here" }`
+  - Request body: `{ "query": "your question here", "chat_source": "crm" }`
+    - `chat_source` supports `crm` or `mail` (case-insensitive). If omitted, CRM is used by default.
   - Response: `{ "answer": "...", "contexts": [...] }`
 
 ### Test
@@ -234,8 +237,10 @@ All configuration is loaded from environment variables:
 - `AMPLIFI_API_URL`: Amplifi API endpoint
 - `AMPLIFI_USERNAME`: Amplifi username
 - `AMPLIFI_PASSWORD`: Amplifi password
-- `AMPLIFI_CHAT_APP_ID`: Amplifi chat app ID
-- `AMPLIFI_CHAT_SESSION_ID`: Amplifi chat session ID
+- `AMPLIFI_CRM_CHAT_APP_ID`: Amplifi chat app ID for the Zoho CRM assistant
+- `AMPLIFI_CRM_CHAT_SESSION_ID`: Amplifi chat session ID for the Zoho CRM assistant
+- `AMPLIFI_MAIL_CHAT_APP_ID`: Amplifi chat app ID for the Zoho Mail assistant
+- `AMPLIFI_MAIL_CHAT_SESSION_ID`: Amplifi chat session ID for the Zoho Mail assistant
 - `MONGODB_URL`: MongoDB connection string
 - `DATABASE_NAME`: MongoDB database name
 - `SECRET_KEY`: JWT secret key (generate randomly)

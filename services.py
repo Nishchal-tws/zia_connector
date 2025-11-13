@@ -2,6 +2,7 @@ import requests
 import os
 import json
 import time
+from typing import Optional
 from config import settings
 
 # Use /tmp directory for serverless environments (Vercel, AWS Lambda, etc.)
@@ -22,9 +23,43 @@ class AmplifiService:
         self.base_url = settings.AMPLIFI_API_URL
         self.username = settings.AMPLIFI_USERNAME
         self.password = settings.AMPLIFI_PASSWORD
-        self.chatapp_id = settings.AMPLIFI_CHAT_APP_ID
-        self.chat_session_id = settings.AMPLIFI_CHAT_SESSION_ID
-        
+
+        # Normalize chat sources and validate configuration
+        self._chat_source_aliases = {
+            "crm": "crm",
+            "zoho_crm": "crm",
+            "zoho crm": "crm",
+            "mail": "mail",
+            "zoho_mail": "mail",
+            "zoho mail": "mail",
+        }
+
+        self.chat_configs = {
+            "crm": {
+                "chat_app_id": settings.AMPLIFI_CRM_CHAT_APP_ID,
+                "chat_session_id": settings.AMPLIFI_CRM_CHAT_SESSION_ID,
+            },
+            "mail": {
+                "chat_app_id": settings.AMPLIFI_MAIL_CHAT_APP_ID,
+                "chat_session_id": settings.AMPLIFI_MAIL_CHAT_SESSION_ID,
+            },
+        }
+
+        missing_values = [
+            key for source, config in self.chat_configs.items()
+            for key, value in (
+                (f"{source}_chat_app_id", config.get("chat_app_id")),
+                (f"{source}_chat_session_id", config.get("chat_session_id")),
+            )
+            if not value
+        ]
+
+        if missing_values:
+            raise ValueError(
+                "Missing Amplifi chat configuration values: "
+                + ", ".join(missing_values)
+            )
+
         # Initialize token file if it doesn't exist (handle permission errors gracefully)
         try:
             if not os.path.exists(TOKEN_FILE):
@@ -105,12 +140,33 @@ class AmplifiService:
             print(f"An unexpected error occurred: {e}")
             raise Exception(f"Failed to get Amplifi user token: {e}")
 
-    def get_amplifi_response(self, query: str) -> dict:
+    def _resolve_chat_config(self, chat_source: Optional[str]) -> dict:
+        """
+        Resolve the chat configuration for the requested source.
+        Defaults to CRM if no source provided for backward compatibility.
+        """
+        if not chat_source:
+            normalized = "crm"
+        else:
+            normalized = chat_source.strip().lower()
+            normalized = self._chat_source_aliases.get(normalized, normalized)
+
+        if normalized not in self.chat_configs:
+            valid_sources = ", ".join(sorted(self.chat_configs.keys()))
+            raise ValueError(
+                f"Invalid chat source '{chat_source}'. "
+                f"Supported values: {valid_sources}"
+            )
+
+        return self.chat_configs[normalized]
+
+    def get_amplifi_response(self, query: str, chat_source: Optional[str] = None) -> dict:
         """
         Calls the Amplifi chat endpoint to get the response from the AI.
         
         """
         access_token = self._get_amplifi_access_token()
+        chat_config = self._resolve_chat_config(chat_source)
         
         url = f"{self.base_url}/api/v2/chat"
         print(f"CONNECTOR -> Calling Amplifi chat endpoint: {url}")
@@ -122,8 +178,8 @@ class AmplifiService:
         }
         
         payload = {
-            "chat_app_id": self.chatapp_id,
-            "chat_session_id": self.chat_session_id,
+            "chat_app_id": chat_config["chat_app_id"],
+            "chat_session_id": chat_config["chat_session_id"],
             "query": query
         }
         print(f"CONNECTOR -> Request Payload: {json.dumps(payload)}")
