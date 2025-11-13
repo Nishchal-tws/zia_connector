@@ -643,7 +643,7 @@ html, body {
 
 .message-text {
   line-height: 1.6;
-  white-space: pre-wrap;
+  white-space: unset;
 }
 
 .message-text.error {

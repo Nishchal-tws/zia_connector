@@ -87,7 +87,7 @@ class AmplifiService:
                 with open(TOKEN_FILE, 'r') as f:
                     token_data = json.load(f)
                 if token_data and token_data.get('access_token') and token_data.get('expires_at', 0) > current_time + 60:
-                    # Use access_token (UUID) for RAG endpoints
+                    # Use access_token (UUID) for chat endpoints
                     return token_data.get('access_token')
             except json.JSONDecodeError:
                 pass  # Token file is corrupt
